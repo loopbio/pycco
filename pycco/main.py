@@ -52,6 +52,7 @@ import re
 import sys
 import time
 from os import path
+from textwrap import dedent
 
 import pygments
 from pygments import formatters, lexers
@@ -109,8 +110,8 @@ def parse(code, language):
     """
 
     lines = code.split("\n")
+    lines = [x + "\n" for x in lines]
     sections = []
-    has_code = docs_text = code_text = ""
 
     if lines[0].startswith("#!"):
         lines.pop(0)
@@ -123,82 +124,66 @@ def parse(code, language):
 
     def save(docs, code):
         if docs or code:
-            sections.append({
-                "docs_text": docs,
-                "code_text": code
-            })
+            sections.append({"docs_text": docs, "code_text": code})
 
     # Setup the variables to get ready to check for multiline comments
+    code_block = True
     multi_line = False
-    multi_string = False
     multistart, multiend = language.get("multistart"), language.get("multiend")
-    comment_matcher = language['comment_matcher']
+    comment_symbol = language['comment_symbol']
 
+    code_text = ''
+    docs_text = ''
+
+    # NOTE this doesn't fully work if code comes first before a comment
     for line in lines:
-        process_as_code = False
-        # Only go into multiline comments section when one of the delimiters is
-        # found to be at the start of a line
-        if multistart and multiend \
-           and any(line.lstrip().startswith(delim) or line.rstrip().endswith(delim)
-                   for delim in (multistart, multiend)):
-            multi_line = not multi_line
+        # Search for multiline start and for line comments
+        if code_block:
+            # Start a multiline comment block
+            if multistart and multiend and line.lstrip().startswith(multistart):
+                code_block = False
+                multi_line = True
+                line = line.replace(multistart, '', 1).lstrip()
+                if docs_text.strip():
+                    if code_text.strip():
+                        save(dedent(docs_text), code_text)
+                        docs_text, code_text = '', ''
+                docs_text += line
 
-            if multi_line \
-               and line.strip().endswith(multiend) \
-               and len(line.strip()) > len(multiend):
-                multi_line = False
-
-            if not line.strip().startswith(multistart) and not multi_line \
-               or multi_string:
-
-                process_as_code = True
-
-                if multi_string:
-                    multi_line = False
-                    multi_string = False
-                else:
-                    multi_string = True
+            # Start a group of line comments
+            elif line.lstrip().startswith(comment_symbol):
+                code_block = False
+                line = line.lstrip().replace(comment_symbol, '', 1)
+                if docs_text.strip():
+                    if code_text.strip():
+                        save(dedent(docs_text), code_text)
+                        docs_text, code_text = '', ''
+                docs_text += line
 
             else:
-                # Get rid of the delimiters so that they aren't in the final
-                # docs
-                line = line.replace(multistart, '')
-                line = line.replace(multiend, '')
-                docs_text += line.strip() + '\n'
-                indent_level = re.match(r"\s*", line).group(0)
+                code_text += line
 
-                if has_code and docs_text.strip():
-                    save(docs_text, code_text[:-1])
-                    code_text = code_text.split('\n')[-1]
-                    has_code = docs_text = ''
-
+        # Search for multiline end
         elif multi_line:
-            # Remove leading spaces
-            if re.match(r' {{{:d}}}'.format(len(indent_level)), line):
-                docs_text += line[len(indent_level):] + '\n'
+            if multistart and multiend and line.rstrip().endswith(multiend):
+                code_block = True
+                multi_line = False
+                docs_text += ''.join(line.rstrip().rsplit(multiend))
+
             else:
-                docs_text += line + '\n'
+                docs_text += line
 
-        elif re.match(comment_matcher, line):
-            if has_code:
-                save(docs_text, code_text)
-                has_code = docs_text = code_text = ''
-            docs_text += re.sub(comment_matcher, "", line) + "\n"
-
+        # Line comment
+        # Search for end of line comment block
         else:
-            process_as_code = True
+            if not line.lstrip().startswith(comment_symbol):
+                code_block = True
+                code_text += line
+            else:
+                line = line.lstrip().replace(comment_symbol, '', 1)
+                docs_text += line
 
-        if process_as_code:
-            if code_text and any(line.lstrip().startswith(x)
-                                 for x in ['class ', 'def ', '@']):
-                if not code_text.lstrip().startswith("@"):
-                    save(docs_text, code_text)
-                    code_text = has_code = docs_text = ''
-
-            has_code = True
-            code_text += line + '\n'
-
-    save(docs_text, code_text)
+    save(dedent(docs_text), code_text)
 
     return sections
 
