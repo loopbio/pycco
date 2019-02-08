@@ -144,6 +144,11 @@ def parse(code, language):
                 code_block = False
                 multi_line = True
                 line = line.replace(multistart, '', 1).lstrip()
+                if multistart and multiend and line.rstrip().endswith(multiend):
+                    code_block = True
+                    multi_line = False
+                    line = ''.join(line.rstrip().rsplit(multiend))
+
                 if docs_text.strip():
                     if code_text.strip():
                         save(dedent(docs_text), code_text)
