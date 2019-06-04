@@ -67,6 +67,9 @@ supported_languages = {
     ".r": lang("r", HASH),
     ".R": lang("r", HASH),
 
+    ".yml": lang("YAML", HASH),
+    ".yaml": lang("YAML", HASH),
+
     ".jl": lang("julia", HASH, "#=", "=#"),
 
     ".m": lang("matlab", "%", "%{", "%}"),
