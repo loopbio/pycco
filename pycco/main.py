@@ -239,8 +239,8 @@ def preprocess(comment, preserve_paths=True, outdir=None):
             name=match.group(2)
         )
 
-    comment = re.sub(r'^([=]+)([^=]+)[=]*\s*$', replace_section_name, comment)
-    comment = re.sub(r'(?<!`)\[\[(.+?)\]\]', replace_crossref, comment)
+    comment = re.sub(r'^([=]+)([^=]+)[=]*\s*$', replace_section_name, comment, flags=re.MULTILINE)
+    comment = re.sub(r'(?<!`)\[\[(.+?)\]\]', replace_crossref, comment, flags=re.MULTILINE)
 
     return comment
 
